@@ -8,5 +8,5 @@
 
 - Swagger <host>:<port>/docs
 - API IMPORT: /user/import
-- TEST REPORT STREAM: /user/import.
+- TEST REPORT STREAM: /user/import
   May chuc nang khac t chua upgrade len
