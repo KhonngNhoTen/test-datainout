@@ -9,10 +9,14 @@ export class UserImporterHandler extends ImporterHandler<User> {
     this.userRepository = AppDataSource.getRepository(User);
   }
   async handleChunk(chunks: User[]) {
-    await this.userRepository.insert(chunks);
+    try {
+      await this.userRepository.insert(chunks);
+    } catch (error) {
+      console.log();
+    }
   }
 
   protected async catch(error: Error) {
-    console.error(error);
+    console.error('>>>>>>>>>>>>>>>', error);
   }
 }

@@ -21,6 +21,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { PassThrough } from 'stream';
 import * as fs from 'fs';
+import * as path from 'path';
 
 @Controller({
   path: '/user',
@@ -82,6 +83,16 @@ export class UserController {
     },
   ) {
     return this.userService.import(file.buffer);
+  }
+
+  @Post('import-stream')
+  @UseInterceptors(FileInterceptor('file'))
+  importStream(@Query('fileName') fileName: string) {
+    console.log(path.join(process.cwd(), 'excels', `${fileName}.xlsx`));
+    const stream = fs.createReadStream(
+      path.join(process.cwd(), 'excels', `${fileName}.xlsx`),
+    );
+    return this.userService.importStream(stream);
   }
 
   @Post('create-report-template')

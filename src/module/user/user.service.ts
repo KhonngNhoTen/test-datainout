@@ -9,10 +9,10 @@ import {
 } from 'datainout/template-generators';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Reporter } from 'datainout/reporters';
-import { UserPartial } from './partial-user';
-import { Writable } from 'stream';
+import { UserParital } from '../partial-tranfers/new-partial-user';
+import { Readable, Writable } from 'stream';
 import { fakeUser } from 'src/fake-data/fakeUser';
-import { createGzip } from 'zlib';
+import { UserStreamPartial } from '../partial-tranfers/partial-user-stream';
 @Injectable()
 export class UserService {
   importTemplatePath = 'user-template-import';
@@ -28,7 +28,6 @@ export class UserService {
   }
 
   async import(buffer: Buffer) {
-    console.log('start', new Date());
     console.time('counting time');
     const importer = new Importer(this.importTemplatePath);
     importer.ExcelTemplate.add([
@@ -39,13 +38,40 @@ export class UserService {
         setValue: () => ({ name: 'AAA', createdAt: new Date() }),
       },
     ]);
+
     await importer.load(buffer, new UserImporterHandler(), {
       ignoreErrors: false,
-      chunkSize: 10000,
+      chunkSize: 5000,
+      jobCount: 4,
     });
-    console.log('end', new Date());
     console.timeEnd('counting time');
 
+    return { msg: 'Ok' };
+  }
+
+  async importStream(stream: Readable) {
+    const importer = new Importer(this.importTemplatePath);
+    importer.ExcelTemplate.add([
+      {
+        keyName: 'createdBy',
+        section: 'table',
+        type: 'virtual',
+        setValue: () => ({ name: 'AAA', createdAt: new Date() }),
+      },
+    ]);
+
+    const streamer = importer.createStream(stream, new UserImporterHandler(), {
+      chunkSize: 8000,
+    });
+    streamer.onBegin((sheetName) => {
+      console.time('finish:::');
+      console.log(`Begin import sheetName ${sheetName}`);
+    });
+    streamer.onFinish(() => {
+      console.timeEnd('finish:::');
+    });
+
+    streamer.start();
     return { msg: 'Ok' };
   }
 
@@ -58,7 +84,10 @@ export class UserService {
     const users = fakeUser(200000);
     console.time('couting....');
     const exporter = new Reporter(templatePath).createExporterEXCEL();
-    const buffer = await exporter.toBuffer({ table: users });
+    const buffer = await exporter.toBuffer(
+      { table: users },
+      { style: 'no-style' },
+    );
     console.timeEnd('couting....');
     return buffer;
   }
@@ -72,43 +101,26 @@ export class UserService {
   }
 
   reportStream(stream: Writable) {
-    const userTranfer = new UserPartial();
+    const userTranfer = new UserParital();
+
     const exporter = new Reporter(
-      this.reportTemplatePath,
+      'order-report-template',
     ).createExporterEXCEL();
-    let startTime: number;
-    let startTimeAddRow;
-    let totalTimeAddRow;
 
     exporter.Event.onBegin((sheetName) =>
       console.log(`Begin sheetName ${sheetName}`),
-    )
-      // .onHeader((sheetName) => console.log(`OnHeader sheetName ${sheetName}`))
-      // .onFooter((sheetName) => console.log(`Begin sheetName ${sheetName}`))
-      // .onEnd((sheetName) => console.log(`End sheetName ${sheetName}`))
-      .onFinish(() => {
-        console.timeEnd('finish:::');
-      })
-      .onFile(() => {
-        console.time('finish:::');
-      })
-      .onData(() => (startTimeAddRow = new Date().getTime()))
-      .endData(
-        () => (totalTimeAddRow += new Date().getTime() - startTimeAddRow),
-      );
+    );
+
+    exporter.Event.onFinish(() => {
+      console.timeEnd('finish:::');
+    });
+
+    exporter.Event.onStart(() => {
+      console.log('begin:');
+      console.time('finish:::');
+    });
 
     exporter.streamTo(stream, { table: userTranfer }, { style: 'no-style' });
-
-    // reporterStream.onBegin(() => {
-    //   console.time('count time');
-    //   console.log('Begin sheet', new Date());
-    // });
-    // reporterStream.onEnd(() => console.log('End sheet'));
-    // reporterStream.onFinish(() => {
-    //   console.log('export file successfully', new Date());
-    //   console.timeEnd('count time');
-    // });
-    // reporterStream.start();
 
     return { msg: 'ok' };
   }
